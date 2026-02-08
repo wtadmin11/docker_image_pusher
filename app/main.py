@@ -1,7 +1,9 @@
 import asyncio
 import json
 import logging
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -15,6 +17,11 @@ from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:14b")
 
 
 class OptimizeRequest(BaseModel):
@@ -89,7 +96,7 @@ class ASRService:
 
 
 class OllamaService:
-    def __init__(self, base_url: str = "http://127.0.0.1:11434") -> None:
+    def __init__(self, base_url: str = OLLAMA_BASE_URL) -> None:
         self.base_url = base_url.rstrip("/")
 
     def optimize(self, text: str) -> str:
@@ -102,7 +109,7 @@ class OllamaService:
             f"原始文本：\n{text}\n"
         )
         payload = {
-            "model": "qwen3:14b",
+            "model": OLLAMA_MODEL,
             "prompt": prompt,
             "stream": False,
             "options": {"temperature": 0.2},
@@ -126,12 +133,12 @@ app.add_middleware(
 asr_service = ASRService()
 ollama_service = OllamaService()
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse("static/index.html")
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.websocket("/ws/transcribe")

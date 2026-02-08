@@ -1,6 +1,6 @@
 # FunASR + Ollama(Qwen3:14b) 局域网实时语音转文字
 
-这是一个可在局域网部署的实时语音转写工具：
+这是一个可在 **Windows 11 / 局域网** 部署的实时语音转写工具：
 
 1. 前端（HTML + JS）实时采集麦克风音频。
 2. 后端用 **FunASR** 实时识别并返回转写内容。
@@ -9,48 +9,46 @@
 
 ---
 
-## 完整部署文档
+## 完整部署文档（Windows 11）
 
 请优先阅读：
 
-- [本地部署文档（详细版）](./DEPLOYMENT.md)
-
-包含：
-- 主机要求与资源建议
-- Ollama 安装/启动/模型拉取
-- 项目安装、局域网访问、防火墙设置
-- 麦克风权限与 HTTPS 注意事项
-- systemd 开机自启配置
-- 健康检查与故障排查
+- [Windows 11 本地部署文档（详细版）](./DEPLOYMENT.md)
 
 ---
 
-## 快速开始
+## Windows 11 快速开始
 
-### 1) 准备模型
+### 1) 准备 Ollama 模型
 
-```bash
+```powershell
 ollama pull qwen3:14b
 ```
 
-### 2) 安装依赖
+### 2) 安装依赖（PowerShell）
 
-```bash
+```powershell
 python -m venv .venv
-source .venv/bin/activate
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
 ### 3) 启动服务
 
-```bash
+```powershell
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ### 4) 浏览器访问
 
 ```text
-http://<你的服务器IP>:8000
+http://<你的Windows服务器IP>:8000
+```
+
+### 5) 一键启动脚本（可选）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_windows.ps1
 ```
 
 ---
@@ -61,12 +59,14 @@ http://<你的服务器IP>:8000
 - `static/index.html`：前端页面结构
 - `static/main.js`：录音、降采样、WebSocket 通信、优化和下载
 - `static/styles.css`：前端样式
-- `DEPLOYMENT.md`：详细部署手册
+- `DEPLOYMENT.md`：Windows 11 详细部署手册
+- `scripts/start_windows.ps1`：Windows 一键启动脚本
 
 ---
 
-## 注意事项
+## 关键兼容说明
 
-- 首次运行 FunASR 会自动下载模型，需要外网。
-- 若优化失败，请检查 Ollama 服务是否在 `127.0.0.1:11434` 运行。
-- 局域网下麦克风权限可能受浏览器策略影响，请按部署文档中的“麦克风权限注意事项”处理。
+- 后端已改为使用 `pathlib` 处理静态路径，兼容 Windows 路径分隔符。
+- 可通过环境变量覆盖 Ollama 地址和模型：
+  - `OLLAMA_BASE_URL`（默认 `http://127.0.0.1:11434`）
+  - `OLLAMA_MODEL`（默认 `qwen3:14b`）
