@@ -87,3 +87,5 @@ uvicorn app.main:app --host 0.0.0.0 --port 8005
 ```
 
 并在页面“后端地址”中填写：`http://localhost:8005`（或你的服务器 IP + 端口），然后点击“保存地址”。
+
+补充：前端现在会先检测 `GET /api/health`，并自动尝试 `ws://.../ws/transcribe` 与 `ws://.../ws/transcribe/` 两种路径，减少因为代理或尾斜杠导致的 404。

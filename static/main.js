@@ -30,10 +30,17 @@ function getBackendBaseUrl() {
   return normalizeBaseUrl(saved || `${location.protocol}//${location.host}`);
 }
 
-function getWsUrl(baseUrl) {
+function getWsUrls(baseUrl) {
   const u = new URL(baseUrl);
   const wsProtocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${wsProtocol}//${u.host}/ws/transcribe`;
+  return [`${wsProtocol}//${u.host}/ws/transcribe`, `${wsProtocol}//${u.host}/ws/transcribe/`];
+}
+
+async function probeBackend(baseUrl) {
+  const res = await fetch(`${baseUrl}/api/health`, { method: 'GET' });
+  if (!res.ok) throw new Error('health check failed');
+  const data = await res.json();
+  if (!data.ok) throw new Error('backend not ready');
 }
 
 function saveBackendUrl() {
@@ -98,6 +105,48 @@ function downsampleBuffer(buffer, sampleRate, outSampleRate = 16000) {
   return result;
 }
 
+async function openWebSocketWithFallback(baseUrl) {
+  const wsUrls = getWsUrls(baseUrl);
+  for (const wsUrl of wsUrls) {
+    setStatus(`连接语音服务：${wsUrl}`);
+    const socket = new WebSocket(wsUrl);
+    const opened = await new Promise((resolve) => {
+      let done = false;
+      socket.onopen = () => {
+        if (!done) {
+          done = true;
+          resolve(true);
+        }
+      };
+      socket.onerror = () => {
+        if (!done) {
+          done = true;
+          resolve(false);
+        }
+      };
+      socket.onclose = () => {
+        if (!done) {
+          done = true;
+          resolve(false);
+        }
+      };
+      setTimeout(() => {
+        if (!done) {
+          done = true;
+          resolve(false);
+        }
+      }, 2500);
+    });
+    if (opened) return socket;
+    try {
+      socket.close();
+    } catch {
+      // ignore
+    }
+  }
+  throw new Error('WebSocket 连接建立失败');
+}
+
 async function startRecording() {
   finalText = '';
   liveText.value = '';
@@ -106,10 +155,9 @@ async function startRecording() {
   downloadBtn.disabled = true;
 
   const baseUrl = getBackendBaseUrl();
-  const wsUrl = getWsUrl(baseUrl);
-  setStatus(`连接语音服务：${wsUrl}`);
+  await probeBackend(baseUrl);
+  ws = await openWebSocketWithFallback(baseUrl);
 
-  ws = new WebSocket(wsUrl);
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'partial') {
@@ -128,13 +176,6 @@ async function startRecording() {
     stopBtn.disabled = true;
     startBtn.disabled = false;
   };
-
-  await new Promise((resolve, reject) => {
-    ws.onopen = resolve;
-    ws.onclose = () => reject(new Error('socket closed'));
-  }).catch(() => {
-    throw new Error('WebSocket 连接建立失败');
-  });
 
   mediaStream = await navigator.mediaDevices.getUserMedia({
     audio: audioSource.value ? { deviceId: { exact: audioSource.value } } : true,
@@ -215,7 +256,7 @@ startBtn.addEventListener('click', async () => {
   try {
     await startRecording();
   } catch {
-    setStatus('无法开始录音：请检查后端地址、服务端口和浏览器麦克风权限');
+    setStatus('无法开始录音：后端未就绪或地址错误。请确认 uvicorn 在对应端口运行，并可访问 /api/health');
   }
 });
 stopBtn.addEventListener('click', stopRecording);

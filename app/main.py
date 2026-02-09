@@ -32,6 +32,12 @@ class OptimizeResponse(BaseModel):
     markdown: str
 
 
+class HealthResponse(BaseModel):
+    ok: bool
+    ws_path: str
+    optimize_path: str
+
+
 @dataclass
 class StreamSession:
     cache: dict[str, Any] = field(default_factory=dict)
@@ -141,7 +147,13 @@ def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/api/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    return HealthResponse(ok=True, ws_path="/ws/transcribe", optimize_path="/api/optimize")
+
+
 @app.websocket("/ws/transcribe")
+@app.websocket("/ws/transcribe/")
 async def ws_transcribe(websocket: WebSocket) -> None:
     await websocket.accept()
     session = StreamSession()

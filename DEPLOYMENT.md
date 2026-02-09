@@ -269,6 +269,14 @@ http://<Windows服务器IP>:8005
 
 并确保 Windows 防火墙已放行 8005。
 
+先验证后端是否真的是 FastAPI 服务：
+
+```powershell
+curl http://localhost:8005/api/health
+```
+
+返回 `{"ok":true,...}` 后再点击“开始录音”。
+
 ---
 ## 10. 快速命令（Windows）
 
