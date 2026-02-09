@@ -8,12 +8,16 @@ const statusEl = document.getElementById('status');
 const backendUrlInput = document.getElementById('backendUrl');
 const saveBackendBtn = document.getElementById('saveBackendBtn');
 
+const TARGET_SAMPLE_RATE = 16000;
+const SEND_CHUNK_SAMPLES = 9600; // 约600ms，匹配 FunASR 在线模型常见步长
+
 let ws;
 let audioContext;
 let processor;
 let mediaStream;
 let sourceNode;
 let finalText = '';
+let sendBuffer = new Int16Array(0);
 
 function setStatus(text) {
   statusEl.innerText = `状态：${text}`;
@@ -81,7 +85,7 @@ function floatTo16BitPCM(float32Array) {
   return out;
 }
 
-function downsampleBuffer(buffer, sampleRate, outSampleRate = 16000) {
+function downsampleBuffer(buffer, sampleRate, outSampleRate = TARGET_SAMPLE_RATE) {
   if (outSampleRate === sampleRate) return buffer;
   const ratio = sampleRate / outSampleRate;
   const newLength = Math.round(buffer.length / ratio);
@@ -96,11 +100,36 @@ function downsampleBuffer(buffer, sampleRate, outSampleRate = 16000) {
       accum += buffer[i];
       count += 1;
     }
-    result[offsetResult] = accum / count;
+    result[offsetResult] = accum / Math.max(1, count);
     offsetResult += 1;
     offsetBuffer = nextOffsetBuffer;
   }
   return result;
+}
+
+function appendInt16Buffer(base, addon) {
+  const merged = new Int16Array(base.length + addon.length);
+  merged.set(base, 0);
+  merged.set(addon, base.length);
+  return merged;
+}
+
+function flushSendBuffer(force = false) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const chunkCount = force ? Math.floor(sendBuffer.length / 1) : Math.floor(sendBuffer.length / SEND_CHUNK_SAMPLES);
+  if (chunkCount <= 0) return;
+
+  if (!force) {
+    for (let i = 0; i < chunkCount; i += 1) {
+      const start = i * SEND_CHUNK_SAMPLES;
+      const end = start + SEND_CHUNK_SAMPLES;
+      ws.send(sendBuffer.slice(start, end).buffer);
+    }
+    sendBuffer = sendBuffer.slice(chunkCount * SEND_CHUNK_SAMPLES);
+  } else {
+    ws.send(sendBuffer.buffer);
+    sendBuffer = new Int16Array(0);
+  }
 }
 
 async function openWebSocketWithFallback(baseUrl) {
@@ -147,6 +176,7 @@ async function openWebSocketWithFallback(baseUrl) {
 
 async function startRecording() {
   finalText = '';
+  sendBuffer = new Int16Array(0);
   liveText.value = '';
   downloadBtn.disabled = true;
 
@@ -157,12 +187,8 @@ async function startRecording() {
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'partial') {
-      if (typeof data.text === 'string') {
-        liveText.value = data.text;
-      }
-      if (data.changed) {
-        setStatus('录音中... 正在实时识别');
-      }
+      if (typeof data.text === 'string') liveText.value = data.text;
+      if (data.changed) setStatus('录音中... 正在实时识别');
     }
     if (data.type === 'final') {
       finalText = data.text || liveText.value;
@@ -189,9 +215,10 @@ async function startRecording() {
   processor.onaudioprocess = (event) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const input = event.inputBuffer.getChannelData(0);
-    const downsampled = downsampleBuffer(input, audioContext.sampleRate, 16000);
+    const downsampled = downsampleBuffer(input, audioContext.sampleRate, TARGET_SAMPLE_RATE);
     const pcm16 = floatTo16BitPCM(downsampled);
-    ws.send(pcm16.buffer);
+    sendBuffer = appendInt16Buffer(sendBuffer, pcm16);
+    flushSendBuffer(false);
   };
 
   sourceNode.connect(processor);
@@ -211,10 +238,8 @@ async function stopRecording() {
   if (audioContext) await audioContext.close();
   if (mediaStream) mediaStream.getTracks().forEach((t) => t.stop());
 
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ event: 'end' }));
-  }
-
+  flushSendBuffer(true);
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ event: 'end' }));
   setStatus('录音已停止，等待最终识别...');
 }
 

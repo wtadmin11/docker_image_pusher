@@ -63,3 +63,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8005
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\start_windows.ps1 -Port 8005
 ```
+
+
+补充：前端已按约 600ms 分片发送 16k PCM 到 WebSocket，更贴合 FunASR online 模型处理节奏，连续说话时稳定性更好。

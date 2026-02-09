@@ -22,6 +22,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8005
 
 ## 关键性能优化（本次）
 
+
+- 前端新增 16k PCM 发送缓冲（约 600ms 一包），更匹配 FunASR online chunk 节奏，减少空 partial 与积压卡顿。
+- 停止录音时会强制 flush 剩余音频并发送 `end`，确保最后一段语音不丢失。
 - 移除了周期性离线回填逻辑，避免长语音和静音后恢复时的阻塞卡顿。
 - 移除了本地 Qwen3/Ollama 整理功能，减少 CPU/GPU 与 I/O 竞争。
 - 后端仅保留在线流式识别模型，`partial` 每个 chunk 都返回。
