@@ -96,3 +96,38 @@ uvicorn app.main:app --host 0.0.0.0 --port 8005
 - 前端升级为现代蓝色科技风 UI。
 - 录音过程中实时识别文本会持续显示在“实时识别文本”框。
 - 整理结果改为纯文本输出（非 Markdown），并过滤模型思考内容（如 `<think>...</think>`）。
+
+
+## ASR 模型检查与更换（实时识别）
+
+当前默认配置：
+
+- 在线实时模型（支持流式）：`iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online`
+- 离线精修模型：`iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch`
+
+可通过健康接口检查当前实际加载模型：
+
+```powershell
+curl http://localhost:8005/api/health
+```
+
+你会看到返回中的：
+- `asr_online_model`
+- `asr_offline_model`
+
+### 如何更换模型
+
+通过环境变量覆盖：
+
+```powershell
+$env:ASR_ONLINE_MODEL="iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
+$env:ASR_OFFLINE_MODEL="iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
+$env:ASR_VAD_MODEL="fsmn-vad"
+$env:ASR_PUNC_MODEL="ct-punc-c"
+$env:ASR_CHUNK_SIZE="0,10,5"
+$env:ASR_ENCODER_CHUNK_LOOK_BACK="4"
+$env:ASR_DECODER_CHUNK_LOOK_BACK="1"
+uvicorn app.main:app --host 0.0.0.0 --port 8005
+```
+
+> 重点：`ASR_ONLINE_MODEL` 必须是支持 online/streaming 的模型，实时文本才会持续刷新。

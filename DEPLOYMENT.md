@@ -290,3 +290,39 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 浏览器访问：`http://<你的Windows服务器IP>:8000`
+
+
+## 12. 更换 FunASR 模型（实时/离线）
+
+本项目默认已经使用了**支持实时流式**的在线模型：
+
+- `ASR_ONLINE_MODEL=iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online`
+
+离线精修模型：
+
+- `ASR_OFFLINE_MODEL=iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch`
+
+启动前可在 PowerShell 设置：
+
+```powershell
+$env:ASR_ONLINE_MODEL="iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
+$env:ASR_OFFLINE_MODEL="iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
+$env:ASR_VAD_MODEL="fsmn-vad"
+$env:ASR_PUNC_MODEL="ct-punc-c"
+$env:ASR_CHUNK_SIZE="0,10,5"
+$env:ASR_ENCODER_CHUNK_LOOK_BACK="4"
+$env:ASR_DECODER_CHUNK_LOOK_BACK="1"
+uvicorn app.main:app --host 0.0.0.0 --port 8005
+```
+
+检查实际加载模型：
+
+```powershell
+curl http://localhost:8005/api/health
+```
+
+查看返回字段：
+- `asr_online_model`
+- `asr_offline_model`
+
+> 如果你更换的 online 模型不支持流式，前端“实时识别文本”不会持续更新。

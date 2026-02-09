@@ -24,6 +24,20 @@ STATIC_DIR = BASE_DIR / "static"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:14b")
 
+ASR_ONLINE_MODEL = os.getenv(
+    "ASR_ONLINE_MODEL",
+    "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
+)
+ASR_OFFLINE_MODEL = os.getenv(
+    "ASR_OFFLINE_MODEL",
+    "iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+)
+ASR_VAD_MODEL = os.getenv("ASR_VAD_MODEL", "fsmn-vad")
+ASR_PUNC_MODEL = os.getenv("ASR_PUNC_MODEL", "ct-punc-c")
+ASR_CHUNK_SIZE = [int(x) for x in os.getenv("ASR_CHUNK_SIZE", "0,10,5").split(",")]
+ASR_ENCODER_LOOKBACK = int(os.getenv("ASR_ENCODER_CHUNK_LOOK_BACK", "4"))
+ASR_DECODER_LOOKBACK = int(os.getenv("ASR_DECODER_CHUNK_LOOK_BACK", "1"))
+
 
 class OptimizeRequest(BaseModel):
     text: str
@@ -37,6 +51,8 @@ class HealthResponse(BaseModel):
     ok: bool
     ws_path: str
     optimize_path: str
+    asr_online_model: str
+    asr_offline_model: str
 
 
 @dataclass
@@ -48,20 +64,23 @@ class StreamSession:
 
 class ASRService:
     def __init__(self) -> None:
-        logger.info("Loading FunASR model, this may take some time...")
+        logger.info("Loading FunASR models...")
+        logger.info("ASR online model: %s", ASR_ONLINE_MODEL)
+        logger.info("ASR offline model: %s", ASR_OFFLINE_MODEL)
+
         self.online_model = AutoModel(
-            model="iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
+            model=ASR_ONLINE_MODEL,
             disable_update=True,
         )
         self.offline_model = AutoModel(
-            model="iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
-            vad_model="fsmn-vad",
-            punc_model="ct-punc-c",
+            model=ASR_OFFLINE_MODEL,
+            vad_model=ASR_VAD_MODEL,
+            punc_model=ASR_PUNC_MODEL,
             disable_update=True,
         )
-        self.chunk_size = [0, 10, 5]
-        self.encoder_chunk_look_back = 4
-        self.decoder_chunk_look_back = 1
+        self.chunk_size = ASR_CHUNK_SIZE
+        self.encoder_chunk_look_back = ASR_ENCODER_LOOKBACK
+        self.decoder_chunk_look_back = ASR_DECODER_LOOKBACK
 
     def infer_chunk(self, pcm_int16: bytes, session: StreamSession) -> str:
         session.audio_chunks.append(pcm_int16)
@@ -157,7 +176,13 @@ def index() -> FileResponse:
 
 @app.get("/api/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(ok=True, ws_path="/ws/transcribe", optimize_path="/api/optimize")
+    return HealthResponse(
+        ok=True,
+        ws_path="/ws/transcribe",
+        optimize_path="/api/optimize",
+        asr_online_model=ASR_ONLINE_MODEL,
+        asr_offline_model=ASR_OFFLINE_MODEL,
+    )
 
 
 @app.websocket("/ws/transcribe")
