@@ -70,3 +70,20 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start_windows.ps1
 - 可通过环境变量覆盖 Ollama 地址和模型：
   - `OLLAMA_BASE_URL`（默认 `http://127.0.0.1:11434`）
   - `OLLAMA_MODEL`（默认 `qwen3:14b`）
+
+
+## WebSocket 404 快速排查
+
+如果你在 `8005` 端口点击“开始录音”出现：
+
+`WebSocket connection ... /ws/transcribe ... 404`
+
+通常是因为当前页面不是由 FastAPI(uvicorn) 提供，而是被 `python -m http.server` 等静态服务器托管，导致没有 `/ws/transcribe` 路由。
+
+请确保使用下面命令启动：
+
+```powershell
+uvicorn app.main:app --host 0.0.0.0 --port 8005
+```
+
+并在页面“后端地址”中填写：`http://localhost:8005`（或你的服务器 IP + 端口），然后点击“保存地址”。

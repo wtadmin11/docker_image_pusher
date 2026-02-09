@@ -61,3 +61,14 @@ button:disabled {
 #status {
   color: #3b4256;
 }
+
+input[type="text"] {
+  border: 1px solid #cdd7e8;
+  border-radius: 6px;
+  padding: 8px;
+  min-width: 280px;
+}
+
+#backendUrl {
+  flex: 1 1 320px;
+}

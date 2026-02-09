@@ -237,6 +237,39 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start_windows.ps1 -HostAddr 0
 
 ---
 
+
+## 11. 你遇到的 8005 端口 WebSocket 404 问题
+
+报错：
+
+`WebSocket connection to 'ws://localhost:8005/ws/transcribe' failed: ... 404`
+
+根因通常是：
+
+1. 你用的是静态服务器（如 `python -m http.server 8005`），它不会提供 WebSocket 路由；
+2. 或页面连接到了错误的后端地址/端口。
+
+正确做法：
+
+```powershell
+uvicorn app.main:app --host 0.0.0.0 --port 8005
+```
+
+然后在页面顶部 **后端地址** 填：
+
+```text
+http://localhost:8005
+```
+
+若从局域网其它设备访问，请填：
+
+```text
+http://<Windows服务器IP>:8005
+```
+
+并确保 Windows 防火墙已放行 8005。
+
+---
 ## 10. 快速命令（Windows）
 
 ```powershell

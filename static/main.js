@@ -7,6 +7,8 @@ const downloadBtn = document.getElementById('downloadBtn');
 const liveText = document.getElementById('liveText');
 const mdText = document.getElementById('mdText');
 const statusEl = document.getElementById('status');
+const backendUrlInput = document.getElementById('backendUrl');
+const saveBackendBtn = document.getElementById('saveBackendBtn');
 
 let ws;
 let audioContext;
@@ -17,6 +19,40 @@ let finalText = '';
 
 function setStatus(text) {
   statusEl.innerText = `状态：${text}`;
+}
+
+function normalizeBaseUrl(url) {
+  return url.replace(/\/$/, '');
+}
+
+function getBackendBaseUrl() {
+  const saved = localStorage.getItem('backendBaseUrl');
+  return normalizeBaseUrl(saved || `${location.protocol}//${location.host}`);
+}
+
+function getWsUrl(baseUrl) {
+  const u = new URL(baseUrl);
+  const wsProtocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProtocol}//${u.host}/ws/transcribe`;
+}
+
+function saveBackendUrl() {
+  const raw = backendUrlInput.value.trim();
+  if (!raw) {
+    localStorage.removeItem('backendBaseUrl');
+    backendUrlInput.value = `${location.protocol}//${location.host}`;
+    setStatus('已恢复默认后端地址');
+    return;
+  }
+  try {
+    const parsed = new URL(raw);
+    const normalized = normalizeBaseUrl(parsed.toString());
+    localStorage.setItem('backendBaseUrl', normalized);
+    backendUrlInput.value = normalized;
+    setStatus(`后端地址已保存：${normalized}`);
+  } catch {
+    setStatus('后端地址格式错误，请填写 http(s)://host:port');
+  }
 }
 
 async function loadDevices() {
@@ -69,7 +105,11 @@ async function startRecording() {
   optimizeBtn.disabled = true;
   downloadBtn.disabled = true;
 
-  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/transcribe`);
+  const baseUrl = getBackendBaseUrl();
+  const wsUrl = getWsUrl(baseUrl);
+  setStatus(`连接语音服务：${wsUrl}`);
+
+  ws = new WebSocket(wsUrl);
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'partial') {
@@ -83,8 +123,17 @@ async function startRecording() {
     }
   };
 
-  await new Promise((resolve) => {
+  ws.onerror = () => {
+    setStatus('WebSocket 连接失败：请确认后端是用 uvicorn 启动，并且后端地址正确');
+    stopBtn.disabled = true;
+    startBtn.disabled = false;
+  };
+
+  await new Promise((resolve, reject) => {
     ws.onopen = resolve;
+    ws.onclose = () => reject(new Error('socket closed'));
+  }).catch(() => {
+    throw new Error('WebSocket 连接建立失败');
   });
 
   mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -132,14 +181,15 @@ async function optimizeText() {
   optimizeBtn.disabled = true;
   setStatus('Qwen3 正在整理文本...');
 
-  const resp = await fetch('/api/optimize', {
+  const baseUrl = getBackendBaseUrl();
+  const resp = await fetch(`${baseUrl}/api/optimize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: finalText }),
   });
 
   if (!resp.ok) {
-    setStatus('整理失败，请检查 Ollama 服务');
+    setStatus('整理失败，请检查 Ollama 服务和后端地址配置');
     optimizeBtn.disabled = false;
     return;
   }
@@ -161,12 +211,20 @@ function downloadMarkdown() {
 }
 
 refreshDevices.addEventListener('click', loadDevices);
-startBtn.addEventListener('click', startRecording);
+startBtn.addEventListener('click', async () => {
+  try {
+    await startRecording();
+  } catch {
+    setStatus('无法开始录音：请检查后端地址、服务端口和浏览器麦克风权限');
+  }
+});
 stopBtn.addEventListener('click', stopRecording);
 optimizeBtn.addEventListener('click', optimizeText);
 downloadBtn.addEventListener('click', downloadMarkdown);
+saveBackendBtn.addEventListener('click', saveBackendUrl);
 
 (async () => {
+  backendUrlInput.value = getBackendBaseUrl();
   await navigator.mediaDevices.getUserMedia({ audio: true });
   await loadDevices();
 })();

@@ -11,6 +11,12 @@
       <h1>实时语音转文字（局域网版）</h1>
 
       <section class="panel controls">
+        <label for="backendUrl">后端地址：</label>
+        <input id="backendUrl" type="text" placeholder="如: http://localhost:8005" />
+        <button id="saveBackendBtn">保存地址</button>
+      </section>
+
+      <section class="panel controls">
         <label for="audioSource">录音设备：</label>
         <select id="audioSource"></select>
         <button id="refreshDevices">刷新设备</button>
