@@ -37,6 +37,8 @@ ASR_PUNC_MODEL = os.getenv("ASR_PUNC_MODEL", "ct-punc-c")
 ASR_CHUNK_SIZE = [int(x) for x in os.getenv("ASR_CHUNK_SIZE", "0,10,5").split(",")]
 ASR_ENCODER_LOOKBACK = int(os.getenv("ASR_ENCODER_CHUNK_LOOK_BACK", "4"))
 ASR_DECODER_LOOKBACK = int(os.getenv("ASR_DECODER_CHUNK_LOOK_BACK", "1"))
+ASR_PARTIAL_FALLBACK_INTERVAL = int(os.getenv("ASR_PARTIAL_FALLBACK_INTERVAL", "8"))
+ASR_PARTIAL_FALLBACK_MIN_SECONDS = float(os.getenv("ASR_PARTIAL_FALLBACK_MIN_SECONDS", "1.2"))
 
 
 class OptimizeRequest(BaseModel):
@@ -60,6 +62,8 @@ class StreamSession:
     cache: dict[str, Any] = field(default_factory=dict)
     combined_text: str = ""
     audio_chunks: list[bytes] = field(default_factory=list)
+    processed_chunks: int = 0
+    last_fallback_text: str = ""
 
 
 class ASRService:
@@ -84,6 +88,7 @@ class ASRService:
 
     def infer_chunk(self, pcm_int16: bytes, session: StreamSession) -> str:
         session.audio_chunks.append(pcm_int16)
+        session.processed_chunks += 1
         samples = np.frombuffer(pcm_int16, dtype=np.int16).astype(np.float32) / 32768.0
         if samples.size == 0:
             return ""
@@ -107,6 +112,33 @@ class ASRService:
         if text:
             session.combined_text += text
         return text
+
+    def infer_partial_fallback(self, session: StreamSession) -> str:
+        if not session.audio_chunks:
+            return ""
+
+        # 每隔一定 chunk 数触发一次，避免每个 chunk 都离线重算。
+        if session.processed_chunks % ASR_PARTIAL_FALLBACK_INTERVAL != 0:
+            return ""
+
+        pcm = b"".join(session.audio_chunks)
+        samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
+        if samples.size < int(16000 * ASR_PARTIAL_FALLBACK_MIN_SECONDS):
+            return ""
+
+        result = self.offline_model.generate(input=samples, use_itn=True)
+        if isinstance(result, list) and result:
+            text = result[0].get("text", "").strip()
+        elif isinstance(result, dict):
+            text = result.get("text", "").strip()
+        else:
+            text = ""
+
+        if text and text != session.last_fallback_text:
+            session.last_fallback_text = text
+            session.combined_text = text
+            return text
+        return ""
 
     def infer_final(self, session: StreamSession) -> str:
         pcm = b"".join(session.audio_chunks)
@@ -197,6 +229,9 @@ async def ws_transcribe(websocket: WebSocket) -> None:
             if "bytes" in message and message["bytes"] is not None:
                 previous = session.combined_text
                 text = await loop.run_in_executor(None, asr_service.infer_chunk, message["bytes"], session)
+                if not text:
+                    await loop.run_in_executor(None, asr_service.infer_partial_fallback, session)
+
                 await websocket.send_text(
                     json.dumps(
                         {

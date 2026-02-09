@@ -131,3 +131,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8005
 ```
 
 > 重点：`ASR_ONLINE_MODEL` 必须是支持 online/streaming 的模型，实时文本才会持续刷新。
+
+- 若 online 模型在前几秒持续返回空 `partial`，后端会自动启用阶段性离线回填（默认每 8 个音频块回填一次），确保实时文本框有可见更新。
+
+
+可选调优环境变量：`ASR_PARTIAL_FALLBACK_INTERVAL`（默认 8）、`ASR_PARTIAL_FALLBACK_MIN_SECONDS`（默认 1.2）。

@@ -326,3 +326,6 @@ curl http://localhost:8005/api/health
 - `asr_offline_model`
 
 > 如果你更换的 online 模型不支持流式，前端“实时识别文本”不会持续更新。
+
+
+补充实时回填参数：`ASR_PARTIAL_FALLBACK_INTERVAL`（默认 8）、`ASR_PARTIAL_FALLBACK_MIN_SECONDS`（默认 1.2）。当 streaming 模型短时无输出时，后端会周期性用离线模型回填 partial。
