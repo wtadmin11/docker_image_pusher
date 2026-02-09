@@ -29,6 +29,11 @@ ASR_ENCODER_LOOKBACK = int(os.getenv("ASR_ENCODER_CHUNK_LOOK_BACK", "4"))
 ASR_DECODER_LOOKBACK = int(os.getenv("ASR_DECODER_CHUNK_LOOK_BACK", "1"))
 
 
+if os.name == "nt":
+    # 避免 Windows Proactor 事件循环在连接被客户端重置时抛出噪声异常日志。
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
 class HealthResponse(BaseModel):
     ok: bool
     ws_path: str
@@ -132,5 +137,10 @@ async def ws_transcribe(websocket: WebSocket) -> None:
                     break
     except WebSocketDisconnect:
         logger.info("Client disconnected")
+    except ConnectionResetError:
+        logger.info("Client connection reset")
     finally:
-        await websocket.close()
+        try:
+            await websocket.close()
+        except Exception:
+            pass

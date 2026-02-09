@@ -56,3 +56,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8005
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\start_windows.ps1
 ```
+
+## Windows WinError 10054 日志说明
+
+已在后端启用 Windows Selector 事件循环策略，并对连接关闭阶段做了保护处理，减少 `ConnectionResetError: [WinError 10054]` 这类噪声日志。
