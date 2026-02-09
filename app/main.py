@@ -170,9 +170,18 @@ async def ws_transcribe(websocket: WebSocket) -> None:
         while True:
             message = await websocket.receive()
             if "bytes" in message and message["bytes"] is not None:
+                previous = session.combined_text
                 text = await loop.run_in_executor(None, asr_service.infer_chunk, message["bytes"], session)
-                if text:
-                    await websocket.send_text(json.dumps({"type": "partial", "text": session.combined_text}))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "partial",
+                            "text": session.combined_text,
+                            "delta": text,
+                            "changed": session.combined_text != previous,
+                        }
+                    )
+                )
             elif "text" in message and message["text"] is not None:
                 event = json.loads(message["text"])
                 if event.get("event") == "end":

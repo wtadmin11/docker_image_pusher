@@ -161,7 +161,12 @@ async function startRecording() {
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'partial') {
-      liveText.value = data.text;
+      if (typeof data.text === 'string') {
+        liveText.value = data.text;
+      }
+      if (data.changed) {
+        setStatus('录音中... 正在实时识别');
+      }
     }
     if (data.type === 'final') {
       finalText = data.text || liveText.value;
