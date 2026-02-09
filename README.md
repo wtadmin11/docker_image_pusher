@@ -1,138 +1,58 @@
-# FunASR + Ollama(Qwen3:14b) 局域网实时语音转文字
+# FunASR 局域网实时语音转文字（Windows 11）
 
-这是一个可在 **Windows 11 / 局域网** 部署的实时语音转写工具：
+本项目现在是 **纯 ASR 实时转写版本**（已移除本地 Qwen3/Ollama 文本整理流程），重点优化低延迟实时识别体验。
 
-1. 前端（HTML + JS）实时采集麦克风音频。
-2. 后端用 **FunASR** 实时识别并返回转写内容。
-3. 录音结束后调用本地 **Ollama 的 qwen3:14b** 对文本进行整理优化。
-4. 输出为可下载的 Markdown 文档。
+## 功能
 
----
+- 麦克风实时采集音频（前端 HTML + JS）
+- WebSocket 流式传输音频到后端
+- FunASR 在线模型实时返回 partial 文本并刷新前端文本框
+- 结束录音后输出最终识别文本，可下载 `.txt`
 
-## 完整部署文档（Windows 11）
-
-请优先阅读：
-
-- [Windows 11 本地部署文档（详细版）](./DEPLOYMENT.md)
-
----
-
-## Windows 11 快速开始
-
-### 1) 准备 Ollama 模型
-
-```powershell
-ollama pull qwen3:14b
-```
-
-### 2) 安装依赖（PowerShell）
+## 快速启动（PowerShell）
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-### 3) 启动服务
-
-```powershell
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-### 4) 浏览器访问
-
-```text
-http://<你的Windows服务器IP>:8000
-```
-
-### 5) 一键启动脚本（可选）
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start_windows.ps1
-```
-
----
-
-## 目录说明
-
-- `app/main.py`：后端 API（WebSocket 实时转写 + 文本优化接口）
-- `static/index.html`：前端页面结构
-- `static/main.js`：录音、降采样、WebSocket 通信、优化和下载
-- `static/styles.css`：前端样式
-- `DEPLOYMENT.md`：Windows 11 详细部署手册
-- `scripts/start_windows.ps1`：Windows 一键启动脚本
-
----
-
-## 关键兼容说明
-
-- 后端已改为使用 `pathlib` 处理静态路径，兼容 Windows 路径分隔符。
-- 可通过环境变量覆盖 Ollama 地址和模型：
-  - `OLLAMA_BASE_URL`（默认 `http://127.0.0.1:11434`）
-  - `OLLAMA_MODEL`（默认 `qwen3:14b`）
-
-
-## WebSocket 404 快速排查
-
-如果你在 `8005` 端口点击“开始录音”出现：
-
-`WebSocket connection ... /ws/transcribe ... 404`
-
-通常是因为当前页面不是由 FastAPI(uvicorn) 提供，而是被 `python -m http.server` 等静态服务器托管，导致没有 `/ws/transcribe` 路由。
-
-请确保使用下面命令启动：
-
-```powershell
 uvicorn app.main:app --host 0.0.0.0 --port 8005
 ```
 
-并在页面“后端地址”中填写：`http://localhost:8005`（或你的服务器 IP + 端口），然后点击“保存地址”。
+访问：`http://<你的服务器IP>:8005`
 
-补充：前端现在会先检测 `GET /api/health`，并自动尝试 `ws://.../ws/transcribe` 与 `ws://.../ws/transcribe/` 两种路径，减少因为代理或尾斜杠导致的 404。
+## 关键性能优化（本次）
 
-## 本次功能调整
+- 移除了周期性离线回填逻辑，避免长语音和静音后恢复时的阻塞卡顿。
+- 移除了本地 Qwen3/Ollama 整理功能，减少 CPU/GPU 与 I/O 竞争。
+- 后端仅保留在线流式识别模型，`partial` 每个 chunk 都返回。
+- 前端音频块从 `4096` 调整为 `2048`，提升响应速度。
 
-- 后端在录音期间对每个音频分片都发送 `partial` 事件，前端会持续刷新“实时识别文本”框。
-- 前端升级为现代蓝色科技风 UI。
-- 录音过程中实时识别文本会持续显示在“实时识别文本”框。
-- 整理结果改为纯文本输出（非 Markdown），并过滤模型思考内容（如 `<think>...</think>`）。
+## 模型检查与更换
 
+默认在线模型（支持流式）：
 
-## ASR 模型检查与更换（实时识别）
+- `iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online`
 
-当前默认配置：
-
-- 在线实时模型（支持流式）：`iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online`
-- 离线精修模型：`iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch`
-
-可通过健康接口检查当前实际加载模型：
+运行时检查：
 
 ```powershell
 curl http://localhost:8005/api/health
 ```
 
-你会看到返回中的：
-- `asr_online_model`
-- `asr_offline_model`
-
-### 如何更换模型
-
-通过环境变量覆盖：
+通过环境变量替换模型：
 
 ```powershell
 $env:ASR_ONLINE_MODEL="iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
-$env:ASR_OFFLINE_MODEL="iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
-$env:ASR_VAD_MODEL="fsmn-vad"
-$env:ASR_PUNC_MODEL="ct-punc-c"
 $env:ASR_CHUNK_SIZE="0,10,5"
 $env:ASR_ENCODER_CHUNK_LOOK_BACK="4"
 $env:ASR_DECODER_CHUNK_LOOK_BACK="1"
 uvicorn app.main:app --host 0.0.0.0 --port 8005
 ```
 
-> 重点：`ASR_ONLINE_MODEL` 必须是支持 online/streaming 的模型，实时文本才会持续刷新。
+> 注意：如果替换为非 streaming 模型，实时 partial 刷新会明显变差。
 
-- 若 online 模型在前几秒持续返回空 `partial`，后端会自动启用阶段性离线回填（默认每 8 个音频块回填一次），确保实时文本框有可见更新。
+## Windows 一键脚本
 
-
-可选调优环境变量：`ASR_PARTIAL_FALLBACK_INTERVAL`（默认 8）、`ASR_PARTIAL_FALLBACK_MIN_SECONDS`（默认 1.2）。
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_windows.ps1
+```

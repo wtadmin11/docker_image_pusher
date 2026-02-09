@@ -2,10 +2,8 @@ const audioSource = document.getElementById('audioSource');
 const refreshDevices = document.getElementById('refreshDevices');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
-const optimizeBtn = document.getElementById('optimizeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const liveText = document.getElementById('liveText');
-const mdText = document.getElementById('mdText');
 const statusEl = document.getElementById('status');
 const backendUrlInput = document.getElementById('backendUrl');
 const saveBackendBtn = document.getElementById('saveBackendBtn');
@@ -150,8 +148,6 @@ async function openWebSocketWithFallback(baseUrl) {
 async function startRecording() {
   finalText = '';
   liveText.value = '';
-  mdText.value = '';
-  optimizeBtn.disabled = true;
   downloadBtn.disabled = true;
 
   const baseUrl = getBackendBaseUrl();
@@ -171,13 +167,13 @@ async function startRecording() {
     if (data.type === 'final') {
       finalText = data.text || liveText.value;
       liveText.value = finalText;
-      optimizeBtn.disabled = !finalText;
-      setStatus('识别已完成，等待整理');
+      downloadBtn.disabled = !finalText;
+      setStatus('识别完成，可下载文本');
     }
   };
 
   ws.onerror = () => {
-    setStatus('WebSocket 连接失败：请确认后端是用 uvicorn 启动，并且后端地址正确');
+    setStatus('WebSocket 连接失败：请确认后端用 uvicorn 启动且地址正确');
     stopBtn.disabled = true;
     startBtn.disabled = false;
   };
@@ -188,7 +184,7 @@ async function startRecording() {
 
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   sourceNode = audioContext.createMediaStreamSource(mediaStream);
-  processor = audioContext.createScriptProcessor(4096, 1, 1);
+  processor = audioContext.createScriptProcessor(2048, 1, 1);
 
   processor.onaudioprocess = (event) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -222,32 +218,9 @@ async function stopRecording() {
   setStatus('录音已停止，等待最终识别...');
 }
 
-async function optimizeText() {
-  if (!finalText) return;
-  optimizeBtn.disabled = true;
-  setStatus('Qwen3 正在整理文本...');
-
-  const baseUrl = getBackendBaseUrl();
-  const resp = await fetch(`${baseUrl}/api/optimize`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: finalText }),
-  });
-
-  if (!resp.ok) {
-    setStatus('整理失败，请检查 Ollama 服务和后端地址配置');
-    optimizeBtn.disabled = false;
-    return;
-  }
-
-  const data = await resp.json();
-  mdText.value = (data.polished_text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-  downloadBtn.disabled = !mdText.value;
-  setStatus('整理完成，可下载文档');
-}
-
-function downloadMarkdown() {
-  const blob = new Blob([mdText.value], { type: 'text/plain;charset=utf-8' });
+function downloadTranscript() {
+  const text = finalText || liveText.value;
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -261,12 +234,11 @@ startBtn.addEventListener('click', async () => {
   try {
     await startRecording();
   } catch {
-    setStatus('无法开始录音：后端未就绪或地址错误。请确认 uvicorn 在对应端口运行，并可访问 /api/health');
+    setStatus('无法开始录音：请确认后端地址可访问且 /api/health 正常');
   }
 });
 stopBtn.addEventListener('click', stopRecording);
-optimizeBtn.addEventListener('click', optimizeText);
-downloadBtn.addEventListener('click', downloadMarkdown);
+downloadBtn.addEventListener('click', downloadTranscript);
 saveBackendBtn.addEventListener('click', saveBackendUrl);
 
 (async () => {

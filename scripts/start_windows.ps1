@@ -1,8 +1,7 @@
 Param(
   [string]$HostAddr = "0.0.0.0",
   [int]$Port = 8000,
-  [string]$OllamaBaseUrl = "http://127.0.0.1:11434",
-  [string]$OllamaModel = "qwen3:14b"
+  [string]$AsrOnlineModel = "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,7 +15,6 @@ if (-not (Test-Path .venv\Scripts\Activate.ps1)) {
 python -m pip install -U pip
 pip install -r requirements.txt
 
-$env:OLLAMA_BASE_URL = $OllamaBaseUrl
-$env:OLLAMA_MODEL = $OllamaModel
+$env:ASR_ONLINE_MODEL = $AsrOnlineModel
 
 uvicorn app.main:app --host $HostAddr --port $Port

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FunASR + Qwen3 实时语音转文字</title>
+    <title>FunASR 实时语音转文字</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -13,7 +13,7 @@
     <main class="container">
       <header class="hero">
         <h1>实时语音转文字</h1>
-        <p>FunASR + Qwen3 本地化语音整理工具</p>
+        <p>低延迟流式识别（仅 ASR）</p>
       </header>
 
       <section class="panel controls">
@@ -28,20 +28,12 @@
         <button id="refreshDevices">刷新设备</button>
         <button id="startBtn">开始录音</button>
         <button id="stopBtn" disabled>结束录音</button>
+        <button id="downloadBtn" disabled>下载 .txt</button>
       </section>
 
       <section class="panel">
         <h2>实时识别文本</h2>
         <textarea id="liveText" readonly placeholder="录音过程中会实时显示识别文本..."></textarea>
-      </section>
-
-      <section class="panel">
-        <div class="row">
-          <h2>整理后的文本</h2>
-          <button id="optimizeBtn" disabled>整理优化</button>
-          <button id="downloadBtn" disabled>下载 .txt</button>
-        </div>
-        <textarea id="mdText" readonly placeholder="整理后的纯文本会显示在这里（不含思考内容）..."></textarea>
       </section>
 
       <p id="status">状态：待机</p>
