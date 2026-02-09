@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,7 @@ class OptimizeRequest(BaseModel):
 
 
 class OptimizeResponse(BaseModel):
-    markdown: str
+    polished_text: str
 
 
 class HealthResponse(BaseModel):
@@ -105,13 +106,20 @@ class OllamaService:
     def __init__(self, base_url: str = OLLAMA_BASE_URL) -> None:
         self.base_url = base_url.rstrip("/")
 
+    @staticmethod
+    def clean_output(raw_text: str) -> str:
+        text = re.sub(r"<think>[\s\S]*?</think>", "", raw_text, flags=re.IGNORECASE)
+        text = re.sub(r"```[\s\S]*?```", "", text)
+        return text.strip()
+
     def optimize(self, text: str) -> str:
         prompt = (
             "你是一名中文会议记录编辑助手。请在不丢失关键信息的前提下，对下面语音识别文本进行整理：\n"
             "1) 修正明显口语化和语病；\n"
-            "2) 按主题分段，补充小标题；\n"
-            "3) 输出为结构清晰的 Markdown；\n"
-            "4) 如果出现听不清或不确定内容，用【待确认】标注。\n\n"
+            "2) 合并重复表达并保持语义完整；\n"
+            "3) 输出为纯文本正文，不要使用 Markdown 标记；\n"
+            "4) 禁止输出思考过程、分析过程或任何 <think> 内容；\n"
+            "5) 若有听不清内容，直接标注【待确认】。\n\n"
             f"原始文本：\n{text}\n"
         )
         payload = {
@@ -123,7 +131,7 @@ class OllamaService:
         response = requests.post(f"{self.base_url}/api/generate", json=payload, timeout=300)
         response.raise_for_status()
         data = response.json()
-        return data.get("response", "").strip()
+        return self.clean_output(data.get("response", ""))
 
 
 app = FastAPI(title="FunASR + Qwen3 实时语音转文字")
@@ -179,5 +187,5 @@ async def ws_transcribe(websocket: WebSocket) -> None:
 
 @app.post("/api/optimize", response_model=OptimizeResponse)
 def optimize(req: OptimizeRequest) -> OptimizeResponse:
-    markdown = ollama_service.optimize(req.text)
-    return OptimizeResponse(markdown=markdown)
+    polished_text = ollama_service.optimize(req.text)
+    return OptimizeResponse(polished_text=polished_text)

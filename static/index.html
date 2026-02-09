@@ -7,17 +7,23 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
     <main class="container">
-      <h1>实时语音转文字（局域网版）</h1>
+      <header class="hero">
+        <h1>实时语音转文字</h1>
+        <p>FunASR + Qwen3 本地化语音整理工具</p>
+      </header>
 
       <section class="panel controls">
-        <label for="backendUrl">后端地址：</label>
+        <label for="backendUrl">后端地址</label>
         <input id="backendUrl" type="text" placeholder="如: http://localhost:8005" />
         <button id="saveBackendBtn">保存地址</button>
       </section>
 
       <section class="panel controls">
-        <label for="audioSource">录音设备：</label>
+        <label for="audioSource">录音设备</label>
         <select id="audioSource"></select>
         <button id="refreshDevices">刷新设备</button>
         <button id="startBtn">开始录音</button>
@@ -25,17 +31,17 @@
       </section>
 
       <section class="panel">
-        <h2>实时识别</h2>
-        <textarea id="liveText" readonly placeholder="识别结果会显示在这里..."></textarea>
+        <h2>实时识别文本</h2>
+        <textarea id="liveText" readonly placeholder="录音过程中会实时显示识别文本..."></textarea>
       </section>
 
       <section class="panel">
         <div class="row">
-          <h2>Qwen3 整理后的 Markdown</h2>
+          <h2>整理后的文本</h2>
           <button id="optimizeBtn" disabled>整理优化</button>
-          <button id="downloadBtn" disabled>下载 .md</button>
+          <button id="downloadBtn" disabled>下载 .txt</button>
         </div>
-        <textarea id="mdText" readonly placeholder="整理后的文档会显示在这里..."></textarea>
+        <textarea id="mdText" readonly placeholder="整理后的纯文本会显示在这里（不含思考内容）..."></textarea>
       </section>
 
       <p id="status">状态：待机</p>
